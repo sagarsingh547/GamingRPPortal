@@ -100,7 +100,7 @@ def dashboard():
 
 # DAILY REWARD
 @main_bp.route('/daily_bonus', methods=['POST'])
-def dail_bonus():
+def daily_bonus():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
