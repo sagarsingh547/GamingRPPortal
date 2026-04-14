@@ -723,3 +723,67 @@ def set_admin_role():
         conn.close()
         
     return message
+    # MANAGE MONEY (ADMIN FUNCTION)
+@main_bp.route('/manage_money', methods=['POST'])
+def manage_money():
+    # Check if user is admin
+    if session.get('role') != 'Admin':
+        return redirect(url_for('main.dashboard'))
+
+    # Form se data nikal rahe hain
+    user_id = request.form.get('user_id')
+    amount = request.form.get('amount')
+    action = request.form.get('action', 'add') # Agar form mein action nahi hai, to default 'add' maanenge
+
+    if not user_id or not amount:
+        flash("User ID aur Amount dena zaroori hai!", "error")
+        return redirect(url_for('main.admin_panel'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        amount = int(amount)
+        
+        # User ka wallet check karo
+        cursor.execute("SELECT Coins FROM Wallet WHERE UserId = ?", (user_id,))
+        wallet = cursor.fetchone()
+
+        if wallet:
+            current_coins = int(wallet["Coins"]) if wallet["Coins"] else 0
+            
+            # Add ya Deduct logic
+            if action == 'deduct' or action == 'remove':
+                new_coins = max(0, current_coins - amount)
+                desc = f"Admin ne {amount} coins deduct kiye"
+                t_type = "Debit"
+            else:
+                new_coins = current_coins + amount
+                desc = f"Admin ne {amount} coins add kiye"
+                t_type = "Credit"
+
+            # Wallet update karo
+            cursor.execute("UPDATE Wallet SET Coins = ? WHERE UserId = ?", (new_coins, user_id))
+            
+            from datetime import datetime
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Transaction history mein daalo
+            cursor.execute("""
+                INSERT INTO Transactions (UserId, Amount, Type, Description, TransactionDate)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, amount, t_type, desc, now_str))
+
+            conn.commit()
+            flash("Player ke coins successfully update ho gaye!", "success")
+        else:
+            flash("Is user ka wallet database mein nahi mila.", "error")
+
+    except Exception as e:
+        print(f"MANAGE MONEY ERROR: {e}")
+        conn.rollback()
+        flash("Coins update karne mein error aa gayi.", "error")
+    finally:
+        conn.close()
+
+    return redirect(url_for('main.admin_panel'))
