@@ -39,11 +39,7 @@
                 </tr>
                 {% for tx in transactions %}
                 <tr>
-                    <td style="padding: 15px 10px; border-bottom: 1px solid #222; color: #ccc;">{{ tx[3].strftime('%Y-%m-%d %H:%M') }}</td>
-                    <td style="padding: 15px 10px; border-bottom: 1px solid #222; color: #fff;">{{ tx[2] }}</td>
-                    <td style="padding: 15px 10px; border-bottom: 1px solid #222; text-align: right; color: #00ff00; font-weight: bold;">
-                        +{{ tx[0] }} 🪙
-                    </td>
+                    <td style="padding: 15px 10px; border-bottom: 1px solid #222; color: #ccc;">{{ tx[3][:16] if tx[3] else 'N/A' }}</td>
                 </tr>
                 {% endfor %}
             </table>
