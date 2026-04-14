@@ -16,7 +16,7 @@
                 <div style="background: #1a1a24; padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #00ffcc;">
                     <h3 style="color: #fff; margin-bottom: 10px;">{{ ann[0] }}</h3>
                     <p style="color: #ccc; font-size: 1.1rem;">{{ ann[1] }}</p>
-                    <small style="color: #777; display: block; margin-top: 15px;">Posted: {{ ann[2].strftime('%Y-%m-%d %H:%M') }}</small>
+                    <small style="color: #777; display: block; margin-top: 15px;">Posted: {{ ann[2][:16] if ann[2] else 'N/A' }}</small>
                 </div>
             {% endfor %}
         {% else %}
