@@ -698,4 +698,11 @@ def close_ticket(ticket_id):
     cursor = conn.cursor()
 
     try:
-        cursor.execute("UPDATE Ti
+        cursor.execute("UPDATE Tickets SET Status='Closed' WHERE TicketId=?", (ticket_id,))
+        conn.commit()
+    except Exception as e:
+        print(f"CLOSE TICKET ERROR: {e}")
+    finally:
+        conn.close()
+
+    return redirect(url_for('main.admin_panel'))
