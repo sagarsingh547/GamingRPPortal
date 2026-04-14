@@ -706,3 +706,20 @@ def close_ticket(ticket_id):
         conn.close()
 
     return redirect(url_for('main.admin_panel'))
+    # DIRECT ADMIN MAKER FOR 'Admin' USER
+@main_bp.route('/set_admin_role')
+def set_admin_role():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Ye line specifically 'Admin' username ko power degi
+        cursor.execute("UPDATE Users SET Role = 'Admin' WHERE Username = 'Admin'")
+        conn.commit()
+        message = "Done bhai! 'Admin' account ab asli admin ban gaya hai. Ab login karke /admin kholo."
+    except Exception as e:
+        message = f"Error aa gaya: {e}"
+    finally:
+        conn.close()
+        
+    return message
