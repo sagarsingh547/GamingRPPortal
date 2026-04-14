@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="color: #00ffcc; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 30px; text-align: left;">MY INVENTORY</h1>
+    
+    {% if items %}
+        <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+            {% for item in items %}
+            <div class="glow-box" style="width: 250px; margin: 0; padding: 20px; text-align: center; border-top: 3px solid #ffd700;">
+                <h3 style="color: #fff; margin-bottom: 5px;">{{ item[0] }}</h3>
+                <span style="background: rgba(255,215,0,0.1); color: #ffd700; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;">{{ item[2] }}</span>
+                <p style="color: #aaa; font-size: 0.9rem; margin-top: 15px;">{{ item[1] }}</p>
+                <small style="color: #555; display: block; margin-top: 15px;">Acquired: {{ item[3].strftime('%Y-%m-%d') }}</small>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p style="color: #aaa; text-align: center; font-size: 1.2rem; margin-top: 50px;">Your inventory is empty. Go to the shop to buy items!</p>
+    {% endif %}
+{% endblock %}

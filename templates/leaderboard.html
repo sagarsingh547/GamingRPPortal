@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="color: #00ffcc; margin-bottom: 30px;">CITY LEADERBOARD (TOP 10)</h1>
+    
+    <div style="background: #1a1a24; padding: 20px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.5);">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <tr style="color: #ffd700; border-bottom: 2px solid #333;">
+                <th style="padding: 15px;">Rank</th>
+                <th style="padding: 15px;">Username</th>
+                <th style="padding: 15px;">Level</th>
+                <th style="padding: 15px;">Total XP</th>
+                <th style="padding: 15px;">Wealth (Coins)</th>
+            </tr>
+            {% for user in users %}
+            <tr style="border-bottom: 1px solid #222; color: #fff;">
+                <td style="padding: 15px; font-weight: bold; color: #00ffcc;">#{{ loop.index }}</td>
+                <td style="padding: 15px; font-size: 1.1rem;">{{ user[0] }}</td>
+                <td style="padding: 15px;">Lvl {{ user[1] }}</td>
+                <td style="padding: 15px; color: #aaa;">{{ user[2] }} XP</td>
+                <td style="padding: 15px; color: #ffd700;">{{ user[3] }} 🪙</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% endblock %}

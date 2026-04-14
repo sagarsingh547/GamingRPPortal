@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <h1 style="color: #ff3366; text-shadow: 0 0 10px rgba(255,51,102,0.5);">ADMIN CONTROL PANEL</h1>
+        
+        <div style="background: #1a1a24; padding: 15px; border-radius: 10px; border: 1px solid {% if m_status %}#ff3366{% else %}#00ffcc{% endif %};">
+            <span style="color: #fff; margin-right: 15px;">Site Status: <strong>{% if m_status %}Maintenance Mode (ON){% else %}Live (OFF){% endif %}</strong></span>
+            <a href="{{ url_for('main.toggle_maintenance') }}">
+                <button style="background: {% if m_status %}#00ffcc{% else %}#ff3366{% endif %}; color: #000; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                    {% if m_status %}Turn Website ON{% else %}Shut Down Website{% endif %}
+                </button>
+            </a>
+        </div>
+    </div>
+    
+    <div style="display: flex; gap: 30px; text-align: left; flex-wrap: wrap;">
+        <div style="width: 100%; background: #1a1a24; padding: 20px; border-radius: 10px; border: 1px solid #333; margin-bottom: 20px;">
+            <h2 style="color: #fff; margin-bottom: 15px;">Manage Users</h2>
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <tr style="color: #aaa; border-bottom: 1px solid #444;">
+                    <th style="padding: 10px;">Username</th>
+                    <th style="padding: 10px;">Warnings</th>
+                    <th style="padding: 10px;">Actions</th>
+                </tr>
+                {% for u in users %}
+                <tr style="border-bottom: 1px solid #222;">
+                    <td style="padding: 10px; color: #fff;">{{ u[1] }} {% if u[4] %}<span style="color: #ff3366;">(Banned)</span>{% endif %}</td>
+                    <td style="padding: 10px; color: #ffd700;">{{ u[6] }}/3</td>
+                    <td style="padding: 10px; display: flex; gap: 10px;">
+                        <a href="{{ url_for('main.warn_user', user_id=u[0]) }}"><button style="background: #ffd700; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Warn</button></a>
+                        <a href="{{ url_for('main.ban_user', user_id=u[0]) }}"><button style="background: #00ffcc; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">{% if u[4] %}Unban{% else %}Ban{% endif %}</button></a>
+                        <a href="{{ url_for('main.delete_user', user_id=u[0]) }}"><button style="background: #ff3366; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Delete</button></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div style="width: 100%; background: #1a1a24; padding: 20px; border-radius: 10px; border: 1px solid #ffd700; margin-bottom: 20px;">
+            <h2 style="color: #ffd700; margin-bottom: 15px;">Manage User Economy (Coins Control)</h2>
+            <form action="{{ url_for('main.manage_money') }}" method="POST" style="display: flex; gap: 15px; align-items: flex-end;">
+                <div style="flex: 1;">
+                    <label style="color: #aaa; display: block; margin-bottom: 5px;">Username</label>
+                    <input type="text" name="username" class="form-control" placeholder="Enter username..." required>
+                </div>
+                <div style="flex: 1;">
+                    <label style="color: #aaa; display: block; margin-bottom: 5px;">Amount</label>
+                    <input type="number" name="amount" class="form-control" placeholder="Enter amount..." required>
+                </div>
+                <div style="flex: 1;">
+                    <label style="color: #aaa; display: block; margin-bottom: 5px;">Action</label>
+                    <select name="action" class="form-control" style="background: #000; color: #fff;">
+                        <option value="Add">Add Coins (+)</option>
+                        <option value="Subtract">Deduct Coins (-)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-glow" style="padding: 12px 25px; border-color: #ffd700; color: #ffd700;">Apply Changes</button>
+            </form>
+        </div>
+
+        <div style="width: 48%; background: #1a1a24; padding: 20px; border-radius: 10px; border: 1px solid #333;">
+            <h2 style="color: #fff; margin-bottom: 15px;">Manage Announcements</h2>
+            <div style="max-height: 300px; overflow-y: auto;">
+                {% for ann in announcements %}
+                <div style="background: #0f0f13; padding: 10px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h4 style="color: #00ffcc; margin: 0;">{{ ann[1] }}</h4>
+                        <small style="color: #777;">{{ ann[2].strftime('%d %b') }}</small>
+                    </div>
+                    <a href="{{ url_for('main.delete_announcement', ann_id=ann[0]) }}" onclick="return confirm('Are you sure?')">
+                        <button style="background: transparent; color: #ff3366; border: 1px solid #ff3366; padding: 5px; border-radius: 3px; cursor: pointer;">Delete</button>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+            <hr style="border: 0.5px solid #333; margin: 20px 0;">
+            <h3 style="color: #fff;">Post New</h3>
+            <form action="{{ url_for('main.post_announcement') }}" method="POST">
+                <input type="text" name="title" placeholder="Title" class="form-control" style="margin-bottom: 10px;" required>
+                <textarea name="content" placeholder="Content..." class="form-control" rows="3" style="margin-bottom: 10px;" required></textarea>
+                <button type="submit" class="btn-glow" style="width: 100%; padding: 10px;">Post Announcement</button>
+            </form>
+        </div>
+
+        <div style="width: 48%; background: #1a1a24; padding: 20px; border-radius: 10px; border: 1px solid #333;">
+            <h2 style="color: #fff; margin-bottom: 15px;">Support Tickets</h2>
+            <div style="max-height: 450px; overflow-y: auto;">
+                {% for t in tickets %}
+                <div style="background: #0f0f13; padding: 15px; margin-bottom: 10px; border-radius: 5px; border-left: 3px solid {% if t[3] == 'Open' %}#ff3366{% else %}#00ffcc{% endif %};">
+                    <h4 style="color: #fff; margin-bottom: 5px;">{{ t[1] }} <span style="font-size: 0.8rem; color: #aaa;">by {{ t[4] }}</span></h4>
+                    <p style="color: #ccc; font-size: 0.9rem;">{{ t[2] }}</p>
+                    {% if t[3] == 'Open' %}
+                    <a href="{{ url_for('main.close_ticket', ticket_id=t[0]) }}"><button style="background: #00ffcc; color: #000; border: none; padding: 5px 10px; border-radius: 3px; font-weight: bold; cursor: pointer;">Close Ticket</button></a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+{% endblock %} 

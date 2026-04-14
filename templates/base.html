@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gaming City RP Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">GAMING RP</div>
+        <div class="nav-links" style="display: flex; align-items: center; gap: 15px;">
+            <a href="{{ url_for('main.index') }}">Home</a>
+            <a href="{{ url_for('main.leaderboard') }}">Leaderboard</a>
+            {% if session.get('user_id') %}
+                <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('main.shop') }}">Shop</a>
+                <a href="{{ url_for('main.inventory') }}">Inventory</a>
+                <a href="{{ url_for('main.tickets') }}">Support</a>
+                <a href="{{ url_for('main.notifications') }}">🔔 Alerts</a>
+                <a href="{{ url_for('main.profile') }}" style="color: #ffd700;">Profile</a>
+                
+                {% if session.get('role') == 'Admin' %}
+                    <a href="{{ url_for('main.admin_panel') }}" style="color: #ff3366;">Admin Panel</a>
+                {% endif %}
+                
+                <a href="{{ url_for('auth.logout') }}">Logout</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}">Login</a>
+                <a href="{{ url_for('auth.register') }}">Register</a>
+            {% endif %}
+
+            <button id="theme-toggle" style="background: #333; color: #fff; border: 1px solid #555; padding: 5px 10px; border-radius: 20px; cursor: pointer; font-size: 0.9rem; margin-left: 10px;">
+                ☀️ Light Mode
+            </button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+        
+        {% block content %}{% endblock %}
+    </div>
+
+   <script>
+        const themeBtn = document.getElementById('theme-toggle');
+        const body = document.body;
+        
+        // 5 Mast Themes ki list
+        const themes = [
+            { class: 'default', label: '🌙 Dark' },
+            { class: 'light-mode', label: '☀️ Light' },
+            { class: 'cyberpunk-mode', label: '🤖 Cyberpunk' },
+            { class: 'matrix-mode', label: '💻 Matrix' },
+            { class: 'ocean-mode', label: '🌊 Ocean' }
+        ];
+
+        // Pehle se save kiya hua theme dhoondhna
+        let currentThemeIndex = localStorage.getItem('rp_theme_index') ? parseInt(localStorage.getItem('rp_theme_index')) : 0;
+
+        function applyTheme(index) {
+            // Sabse pehle purani saari classes hata do
+            themes.forEach(t => {
+                if(t.class !== 'default') body.classList.remove(t.class);
+            });
+            
+            // Nayi class lagao (agar default nahi hai toh)
+            if(themes[index].class !== 'default') {
+                body.classList.add(themes[index].class);
+            }
+            
+            // Button ka text aur look update karo
+            themeBtn.innerText = themes[index].label;
+            if(themes[index].class === 'light-mode') {
+                themeBtn.style.background = '#f0f0f0';
+                themeBtn.style.color = '#111';
+                themeBtn.style.borderColor = '#ccc';
+            } else {
+                themeBtn.style.background = '#222';
+                themeBtn.style.color = '#fff';
+                themeBtn.style.borderColor = '#555';
+            }
+        }
+
+        // Jab page load ho tab current theme laga do
+        applyTheme(currentThemeIndex);
+
+        // Jab button dabaayein, toh agla theme lagao
+        themeBtn.addEventListener('click', () => {
+            currentThemeIndex = (currentThemeIndex + 1) % themes.length; // 0, 1, 2, 3, 4 fir wapas 0
+            localStorage.setItem('rp_theme_index', currentThemeIndex); // Save kar lo
+            applyTheme(currentThemeIndex);
+        });
+    </script>
+</body>
+</html>

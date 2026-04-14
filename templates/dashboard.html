@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h1 style="text-align: left; color: #fff;">Welcome back, <span style="color:#00ffcc;">{{ user[0] }}</span></h1>
+            <p style="text-align: left; color: #aaa; margin-top: 5px;">Role: {{ user[1] }}</p>
+        </div>
+        
+        <form action="{{ url_for('main.claim_reward') }}" method="POST">
+            <button type="submit" class="btn-glow" style="padding: 10px 20px; font-size: 1rem;">🎁 Claim Daily Reward</button>
+        </form>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; margin-top: 30px; gap: 20px;">
+        <div style="background: #1a1a24; padding: 20px; border-radius: 10px; border-top: 3px solid #00ffcc; width: 33%;">
+            <h3 style="color: #aaa;">RP Level</h3>
+            <p style="font-size: 2.5rem; color: #00ffcc; font-weight: bold;">{{ user[2] }}</p>
+        </div>
+        <div style="background: #1a1a24; padding: 20px; border-radius: 10px; border-top: 3px solid #00ffcc; width: 33%;">
+            <h3 style="color: #aaa;">Total XP</h3>
+            <p style="font-size: 2.5rem; color: #00ffcc; font-weight: bold;">{{ user[3] }}</p>
+        </div>
+        <div style="background: #1a1a24; padding: 20px; border-radius: 10px; border-top: 3px solid #ffd700; width: 33%;">
+            <h3 style="color: #aaa;">Wallet Coins</h3>
+            <p style="font-size: 2.5rem; color: #ffd700; font-weight: bold;">{{ user[4] }} <span style="font-size: 1.5rem;">🪙</span></p>
+        </div>
+    </div>
+
+    <div style="background: #1a1a24; padding: 20px; border-radius: 10px; margin-top: 30px; text-align: left;">
+        <h2 style="color: #00ffcc; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">Recent Transactions</h2>
+        
+        {% if transactions %}
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr style="color: #aaa; text-transform: uppercase; font-size: 0.9rem;">
+                    <th style="padding: 10px; border-bottom: 1px solid #333; text-align: left;">Date</th>
+                    <th style="padding: 10px; border-bottom: 1px solid #333; text-align: left;">Description</th>
+                    <th style="padding: 10px; border-bottom: 1px solid #333; text-align: right;">Amount</th>
+                </tr>
+                {% for tx in transactions %}
+                <tr>
+                    <td style="padding: 15px 10px; border-bottom: 1px solid #222; color: #ccc;">{{ tx[3].strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td style="padding: 15px 10px; border-bottom: 1px solid #222; color: #fff;">{{ tx[2] }}</td>
+                    <td style="padding: 15px 10px; border-bottom: 1px solid #222; text-align: right; color: #00ff00; font-weight: bold;">
+                        +{{ tx[0] }} 🪙
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p style="color: #777; text-align: center; padding: 20px;">No recent transactions found.</p>
+        {% endif %}
+    </div>
+{% endblock %}

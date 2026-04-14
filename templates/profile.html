@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="color: #00ffcc; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 30px; text-align: left;">MY PROFILE</h1>
+
+    <div style="display: flex; gap: 30px; text-align: left;">
+        
+        <div class="glow-box" style="width: 50%; margin: 0;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <img src="{% if user[5] != 'default.png' %}{{ url_for('static', filename='uploads/' + user[5]) }}{% else %}https://ui-avatars.com/api/?name={{ user[0] }}&background=00ffcc&color=000{% endif %}" 
+                     alt="Avatar" style="width: 120px; height: 120px; border-radius: 50%; border: 3px solid #00ffcc; margin-bottom: 15px; object-fit: cover;">
+                
+                <h2 style="color: #fff;">{{ user[0] }}</h2>
+                <span style="background: #333; padding: 3px 10px; border-radius: 5px; font-size: 0.9rem; color: #00ffcc;">{{ user[2] }}</span>
+            </div>
+
+            <p style="color: #aaa; margin-bottom: 10px;"><strong>Email:</strong> {{ user[1] }}</p>
+            <p style="color: #aaa; margin-bottom: 10px;"><strong>Level:</strong> {{ user[3] }} ({{ user[4] }} XP)</p>
+            <p style="color: #aaa; margin-bottom: 20px;"><strong>Joined:</strong> {{ user[6].strftime('%Y-%m-%d') }}</p>
+
+            <hr style="border: 1px solid #333; margin-bottom: 20px;">
+            
+            <h3 style="color: #fff; margin-bottom: 15px;">Change Avatar</h3>
+            <form method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <input type="file" name="avatar" class="form-control" accept="image/*" required>
+                </div>
+                <button type="submit" class="btn-glow" style="font-size: 1rem; padding: 8px;">Upload Image</button>
+            </form>
+        </div>
+
+        <div class="glow-box" style="width: 50%; margin: 0; height: fit-content;">
+            <h2 style="color: #ffd700; margin-bottom: 20px;">Change Password</h2>
+            <form method="POST">
+                <div class="form-group">
+                    <label>Current Password</label>
+                    <input type="password" name="old_password" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" name="new_password" class="form-control" required>
+                </div>
+                <button type="submit" class="btn-glow" style="font-size: 1rem; padding: 8px; border-color: #ffd700; color: #ffd700;">Update Password</button>
+            </form>
+        </div>
+
+    </div>
+{% endblock %}
