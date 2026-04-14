@@ -70,26 +70,40 @@ def dashboard():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # USER DATA
-    cursor.execute("""
-        SELECT u.Username, u.Role, u.Level, u.XP, w.Coins
-        FROM Users u
-        JOIN Wallet w ON u.UserId = w.UserId
-        WHERE u.UserId = ?
-    """, (user_id,))
-    user_data = cursor.fetchone()
+    try:
+        # FIX 1: Use LEFT JOIN in case Wallet is missing for a user
+        cursor.execute("""
+            SELECT u.Username, u.Role, u.Level, u.XP, w.Coins
+            FROM Users u
+            LEFT JOIN Wallet w ON u.UserId = w.UserId
+            WHERE u.UserId = ?
+        """, (user_id,))
+        user_data = cursor.fetchone()
 
-    # LAST 5 TRANSACTIONS (SQLite FIXED)
-    cursor.execute("""
-        SELECT Amount, Type, Description, TransactionDate
-        FROM Transactions
-        WHERE UserId = ?
-        ORDER BY TransactionDate DESC
-        LIMIT 5
-    """, (user_id,))
-    transactions = cursor.fetchall()
+        # FIX 2: Prevent 500 error if user data is completely corrupted
+        if not user_data:
+            session.clear()
+            flash("Account data error! Please login again.", "error")
+            return redirect(url_for('auth.login'))
 
-    conn.close()
+        # LAST 5 TRANSACTIONS
+        cursor.execute("""
+            SELECT Amount, Type, Description, TransactionDate
+            FROM Transactions
+            WHERE UserId = ?
+            ORDER BY TransactionDate DESC
+            LIMIT 5
+        """, (user_id,))
+        transactions = cursor.fetchall()
+        
+    except Exception as e:
+        print(f"DASHBOARD ERROR: {e}") # Yeh Render logs me dikhega
+        flash("Dashboard load hone me error aayi.", "error")
+        # Template fail hone ki jagah error dikhayega
+        user_data = None 
+        transactions = []
+    finally:
+        conn.close()
 
     return render_template(
         'dashboard.html',
@@ -105,43 +119,85 @@ def daily_bonus():
         return redirect(url_for('auth.login'))
 
     user_id = session['user_id']
-
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Last claim check
-    cursor.execute(
-        "SELECT LastDailyReward FROM Wallet WHERE UserId=?",
-        (user_id,)
-    )
-    row = cursor.fetchone()
+    try:
+        # 1. Fetch wallet data safely
+        cursor.execute("SELECT LastDailyReward, Coins FROM Wallet WHERE UserId=?", (user_id,))
+        row = cursor.fetchone()
 
-    now = datetime.now()
-    can_claim = True
+        now = datetime.now()
+        can_claim = True
 
-    if row and row["LastDailyReward"]:
-        try:
-            old_time = datetime.fromisoformat(str(row["LastDailyReward"]))
-            if now - old_time < timedelta(days=1):
-                can_claim = False
-        except:
-            pass
+        # Date checking logic (Safe Parsing)
+        if row and row["LastDailyReward"]:
+            try:
+                # Format string to avoid crash on old corrupted dates
+                old_time_str = str(row["LastDailyReward"]).split('.')[0] 
+                old_time = datetime.strptime(old_time_str, '%Y-%m-%d %H:%M:%S')
+                if now - old_time < timedelta(days=1):
+                    can_claim = False
+            except Exception as e:
+                print(f"Date check skipped due to format issue: {e}")
+                # Agar pehle se date corrupt hai, to claim karne do jisse fix ho jaye
 
-    if not can_claim:
-        flash("Aaj reward already le liya!", "error")
+        if not can_claim:
+            flash("Aaj ka reward already le liya! 24 hours wait karo.", "error")
+            return redirect(url_for('main.dashboard'))
+
+        # 2. Safely get current XP and Level
+        cursor.execute("SELECT XP, Level FROM Users WHERE UserId=?", (user_id,))
+        xp_row = cursor.fetchone()
+
+        current_xp = int(xp_row["XP"]) if (xp_row and xp_row["XP"] is not None) else 0
+        current_level = int(xp_row["Level"]) if (xp_row and xp_row["Level"] is not None) else 1
+
+        new_xp = current_xp + 50
+        new_level = int(new_xp // 100) + 1
+
+        # 3. Update Wallet Safely (Text Format Date)
+        current_coins = int(row["Coins"]) if (row and row["Coins"] is not None) else 0
+        new_coins = current_coins + 500
+        now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+
+        cursor.execute("""
+            UPDATE Wallet
+            SET Coins = ?, LastDailyReward = ?
+            WHERE UserId = ?
+        """, (new_coins, now_str, user_id))
+
+        # Agar wallet tha hi nahi, to insert karo (Fix for missing wallets)
+        if cursor.rowcount == 0:
+            cursor.execute("""
+                INSERT INTO Wallet (UserId, Coins, LastDailyReward)
+                VALUES (?, ?, ?)
+            """, (user_id, new_coins, now_str))
+
+        # 4. Update XP and Level
+        cursor.execute("""
+            UPDATE Users
+            SET XP = ?, Level = ?
+            WHERE UserId = ?
+        """, (new_xp, new_level, user_id))
+
+        # 5. Add Transaction
+        cursor.execute("""
+            INSERT INTO Transactions (UserId, Amount, Type, Description, TransactionDate)
+            VALUES (?, ?, ?, ?, ?)
+        """, (user_id, 500, 'Credit', 'Daily Reward Claimed', now_str))
+
+        conn.commit()
+        flash(f"500 Coins + 50 XP mil gaya! (Level {new_level})", "success")
+
+    except Exception as e:
+        print(f"DAILY BONUS ERROR: {e}")
+        conn.rollback() # Corruption se bachane ke liye changes wapas le lo
+        flash("Reward claim karte time error aayi.", "error")
+    finally:
         conn.close()
-        return redirect(url_for('main.dashboard'))
 
-    # Current XP get karo
-    cursor.execute(
-        "SELECT XP FROM Users WHERE UserId=?",
-        (user_id,)
-    )
-    xp_row = cursor.fetchone()
-
-    current_xp = xp_row["XP"] if xp_row and xp_row["XP"] else 0
-    new_xp = current_xp + 50
-    new_level = int(new_xp // 100) + 1
+    return redirect(url_for('main.dashboard'))
 
     # Wallet update
     cursor.execute("""
