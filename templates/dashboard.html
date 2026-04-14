@@ -7,7 +7,7 @@
             <p style="text-align: left; color: #aaa; margin-top: 5px;">Role: {{ user[1] }}</p>
         </div>
         
-        <form action="{{ url_for('main.claim_reward') }}" method="POST">
+        <form action="{{ url_for('main.daily_bonus') }}" method="POST">
             <button type="submit" class="btn-glow" style="padding: 10px 20px; font-size: 1rem;">🎁 Claim Daily Reward</button>
         </form>
     </div>
