@@ -26,13 +26,16 @@ def check_maintenance():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT SettingValue FROM SystemSettings WHERE SettingKey=?",
-        ('MaintenanceMode',)
-    )
-
-    row = cursor.fetchone()
-    conn.close()
+    try:
+        cursor.execute(
+            "SELECT SettingValue FROM SystemSettings WHERE SettingKey=?",
+            ('MaintenanceMode',)
+        )
+        row = cursor.fetchone()
+    except:
+        row = None
+    finally:
+        conn.close()
 
     if row and row["SettingValue"] == '1':
         if session.get('role') != 'Admin':
@@ -50,12 +53,15 @@ def index():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT Title, Content, PostedDate FROM Announcements ORDER BY PostedDate DESC"
-    )
-
-    announcements = cursor.fetchall()
-    conn.close()
+    try:
+        cursor.execute(
+            "SELECT Title, Content, PostedDate FROM Announcements ORDER BY PostedDate DESC"
+        )
+        announcements = cursor.fetchall()
+    except:
+        announcements = []
+    finally:
+        conn.close()
 
     return render_template('index.html', announcements=announcements)
 
@@ -71,7 +77,7 @@ def dashboard():
     cursor = conn.cursor()
 
     try:
-        # FIX 1: Use LEFT JOIN in case Wallet is missing for a user
+        # FIX 1: LEFT JOIN use kiya hai taki Wallet na hone par bhi crash na ho
         cursor.execute("""
             SELECT u.Username, u.Role, u.Level, u.XP, w.Coins
             FROM Users u
@@ -80,7 +86,7 @@ def dashboard():
         """, (user_id,))
         user_data = cursor.fetchone()
 
-        # FIX 2: Prevent 500 error if user data is completely corrupted
+        # Agar data puri tarah corrupt hai to session clear kar do
         if not user_data:
             session.clear()
             flash("Account data error! Please login again.", "error")
@@ -97,9 +103,8 @@ def dashboard():
         transactions = cursor.fetchall()
         
     except Exception as e:
-        print(f"DASHBOARD ERROR: {e}") # Yeh Render logs me dikhega
+        print(f"DASHBOARD ERROR: {e}")
         flash("Dashboard load hone me error aayi.", "error")
-        # Template fail hone ki jagah error dikhayega
         user_data = None 
         transactions = []
     finally:
@@ -123,7 +128,6 @@ def daily_bonus():
     cursor = conn.cursor()
 
     try:
-        # 1. Fetch wallet data safely
         cursor.execute("SELECT LastDailyReward, Coins FROM Wallet WHERE UserId=?", (user_id,))
         row = cursor.fetchone()
 
@@ -133,20 +137,18 @@ def daily_bonus():
         # Date checking logic (Safe Parsing)
         if row and row["LastDailyReward"]:
             try:
-                # Format string to avoid crash on old corrupted dates
                 old_time_str = str(row["LastDailyReward"]).split('.')[0] 
                 old_time = datetime.strptime(old_time_str, '%Y-%m-%d %H:%M:%S')
                 if now - old_time < timedelta(days=1):
                     can_claim = False
             except Exception as e:
                 print(f"Date check skipped due to format issue: {e}")
-                # Agar pehle se date corrupt hai, to claim karne do jisse fix ho jaye
 
         if not can_claim:
             flash("Aaj ka reward already le liya! 24 hours wait karo.", "error")
             return redirect(url_for('main.dashboard'))
 
-        # 2. Safely get current XP and Level
+        # Safely get current XP and Level
         cursor.execute("SELECT XP, Level FROM Users WHERE UserId=?", (user_id,))
         xp_row = cursor.fetchone()
 
@@ -156,7 +158,7 @@ def daily_bonus():
         new_xp = current_xp + 50
         new_level = int(new_xp // 100) + 1
 
-        # 3. Update Wallet Safely (Text Format Date)
+        # Update Wallet Safely 
         current_coins = int(row["Coins"]) if (row and row["Coins"] is not None) else 0
         new_coins = current_coins + 500
         now_str = now.strftime('%Y-%m-%d %H:%M:%S')
@@ -167,21 +169,21 @@ def daily_bonus():
             WHERE UserId = ?
         """, (new_coins, now_str, user_id))
 
-        # Agar wallet tha hi nahi, to insert karo (Fix for missing wallets)
+        # Agar pehle se wallet table me entry nahi thi, to bana do
         if cursor.rowcount == 0:
             cursor.execute("""
                 INSERT INTO Wallet (UserId, Coins, LastDailyReward)
                 VALUES (?, ?, ?)
             """, (user_id, new_coins, now_str))
 
-        # 4. Update XP and Level
+        # Update XP and Level
         cursor.execute("""
             UPDATE Users
             SET XP = ?, Level = ?
             WHERE UserId = ?
         """, (new_xp, new_level, user_id))
 
-        # 5. Add Transaction
+        # Add Transaction
         cursor.execute("""
             INSERT INTO Transactions (UserId, Amount, Type, Description, TransactionDate)
             VALUES (?, ?, ?, ?, ?)
@@ -192,44 +194,10 @@ def daily_bonus():
 
     except Exception as e:
         print(f"DAILY BONUS ERROR: {e}")
-        conn.rollback() # Corruption se bachane ke liye changes wapas le lo
+        conn.rollback() 
         flash("Reward claim karte time error aayi.", "error")
     finally:
         conn.close()
-
-    return redirect(url_for('main.dashboard'))
-
-    # Wallet update
-    cursor.execute("""
-        UPDATE Wallet
-        SET Coins = Coins + 500,
-            LastDailyReward = ?
-        WHERE UserId = ?
-    """, (now, user_id))
-
-    # User XP + Level update
-    cursor.execute("""
-        UPDATE Users
-        SET XP = ?, Level = ?
-        WHERE UserId = ?
-    """, (new_xp, new_level, user_id))
-
-    # Transaction history
-    cursor.execute("""
-        INSERT INTO Transactions
-        (UserId, Amount, Type, Description)
-        VALUES (?, ?, ?, ?)
-    """, (
-        user_id,
-        500,
-        'Credit',
-        'Daily Reward Claimed'
-    ))
-
-    conn.commit()
-    conn.close()
-
-    flash("500 Coins + 50 XP reward mil gaya!", "success")
 
     return redirect(url_for('main.dashboard'))
 
@@ -243,21 +211,23 @@ def shop():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT ItemId, ItemName, Description, Price, ItemType
-        FROM ShopItems
-    """)
+    try:
+        cursor.execute("""
+            SELECT ItemId, ItemName, Description, Price, ItemType
+            FROM ShopItems
+        """)
+        items = cursor.fetchall()
 
-    items = cursor.fetchall()
-
-    cursor.execute(
-        "SELECT Coins FROM Wallet WHERE UserId=?",
-        (session['user_id'],)
-    )
-
-    wallet = cursor.fetchone()
-
-    conn.close()
+        cursor.execute(
+            "SELECT Coins FROM Wallet WHERE UserId=?",
+            (session['user_id'],)
+        )
+        wallet = cursor.fetchone()
+    except:
+        items = []
+        wallet = None
+    finally:
+        conn.close()
 
     return render_template(
         'shop.html',
@@ -277,52 +247,54 @@ def buy_item(item_id):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT ItemName, Price FROM ShopItems WHERE ItemId=?",
-        (item_id,)
-    )
-
-    item = cursor.fetchone()
-
-    if item:
+    try:
         cursor.execute(
-            "SELECT Coins FROM Wallet WHERE UserId=?",
-            (user_id,)
+            "SELECT ItemName, Price FROM ShopItems WHERE ItemId=?",
+            (item_id,)
         )
+        item = cursor.fetchone()
 
-        wallet = cursor.fetchone()
+        if item:
+            cursor.execute(
+                "SELECT Coins FROM Wallet WHERE UserId=?",
+                (user_id,)
+            )
+            wallet = cursor.fetchone()
 
-        if wallet and wallet["Coins"] >= item["Price"]:
+            if wallet and wallet["Coins"] >= item["Price"]:
+                cursor.execute("""
+                    UPDATE Wallet
+                    SET Coins = Coins - ?
+                    WHERE UserId = ?
+                """, (item["Price"], user_id))
 
-            cursor.execute("""
-                UPDATE Wallet
-                SET Coins = Coins - ?
-                WHERE UserId = ?
-            """, (item["Price"], user_id))
+                cursor.execute("""
+                    INSERT INTO Inventory (UserId, ItemId, AcquiredDate)
+                    VALUES (?, ?, ?)
+                """, (user_id, item_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
 
-            cursor.execute("""
-                INSERT INTO Inventory (UserId, ItemId)
-                VALUES (?, ?)
-            """, (user_id, item_id))
+                cursor.execute("""
+                    INSERT INTO Transactions
+                    (UserId, Amount, Type, Description, TransactionDate)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    user_id,
+                    item["Price"],
+                    'Debit',
+                    f'Purchased {item["ItemName"]}',
+                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                ))
 
-            cursor.execute("""
-                INSERT INTO Transactions
-                (UserId, Amount, Type, Description)
-                VALUES (?, ?, ?, ?)
-            """, (
-                user_id,
-                item["Price"],
-                'Debit',
-                f'Purchased {item["ItemName"]}'
-            ))
-
-            conn.commit()
-            flash("Purchase successful!", "success")
-
-        else:
-            flash("Coins kam hain!", "error")
-
-    conn.close()
+                conn.commit()
+                flash("Purchase successful!", "success")
+            else:
+                flash("Coins kam hain!", "error")
+    except Exception as e:
+        print(f"BUY ITEM ERROR: {e}")
+        conn.rollback()
+        flash("Kuch error aa gaya purchase me.", "error")
+    finally:
+        conn.close()
 
     return redirect(url_for('main.shop'))
 
@@ -336,17 +308,19 @@ def inventory():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT s.ItemName, s.Description, s.ItemType, i.AcquiredDate
-        FROM Inventory i
-        JOIN ShopItems s ON i.ItemId = s.ItemId
-        WHERE i.UserId=?
-        ORDER BY i.AcquiredDate DESC
-    """, (session['user_id'],))
-
-    my_items = cursor.fetchall()
-
-    conn.close()
+    try:
+        cursor.execute("""
+            SELECT s.ItemName, s.Description, s.ItemType, i.AcquiredDate
+            FROM Inventory i
+            JOIN ShopItems s ON i.ItemId = s.ItemId
+            WHERE i.UserId=?
+            ORDER BY i.AcquiredDate DESC
+        """, (session['user_id'],))
+        my_items = cursor.fetchall()
+    except:
+        my_items = []
+    finally:
+        conn.close()
 
     return render_template('inventory.html', items=my_items)
 
@@ -357,20 +331,24 @@ def leaderboard():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT u.Username, u.Level, u.XP, w.Coins
-        FROM Users u
-        JOIN Wallet w ON u.UserId = w.UserId
-        ORDER BY u.Level DESC, u.XP DESC
-        LIMIT 10
-    """)
-
-    top_users = cursor.fetchall()
-
-    conn.close()
+    try:
+        cursor.execute("""
+            SELECT u.Username, u.Level, u.XP, w.Coins
+            FROM Users u
+            LEFT JOIN Wallet w ON u.UserId = w.UserId
+            ORDER BY u.Level DESC, u.XP DESC
+            LIMIT 10
+        """)
+        top_users = cursor.fetchall()
+    except:
+        top_users = []
+    finally:
+        conn.close()
 
     return render_template('leaderboard.html', users=top_users)
-    # TICKETS
+
+
+# TICKETS
 @main_bp.route('/tickets', methods=['GET', 'POST'])
 def tickets():
     if 'user_id' not in session:
@@ -381,29 +359,32 @@ def tickets():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    if request.method == 'POST':
+    try:
+        if request.method == 'POST':
+            cursor.execute("""
+                INSERT INTO Tickets (UserId, Subject, Message, CreatedAt)
+                VALUES (?, ?, ?, ?)
+            """, (
+                user_id,
+                request.form['subject'],
+                request.form['message'],
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            ))
+            conn.commit()
+            flash("Ticket submit ho gaya!", "success")
+
         cursor.execute("""
-            INSERT INTO Tickets (UserId, Subject, Message)
-            VALUES (?, ?, ?)
-        """, (
-            user_id,
-            request.form['subject'],
-            request.form['message']
-        ))
-
-        conn.commit()
-        flash("Ticket submit ho gaya!", "success")
-
-    cursor.execute("""
-        SELECT Subject, Message, Status, CreatedAt
-        FROM Tickets
-        WHERE UserId=?
-        ORDER BY CreatedAt DESC
-    """, (user_id,))
-
-    my_tickets = cursor.fetchall()
-
-    conn.close()
+            SELECT Subject, Message, Status, CreatedAt
+            FROM Tickets
+            WHERE UserId=?
+            ORDER BY CreatedAt DESC
+        """, (user_id,))
+        my_tickets = cursor.fetchall()
+    except Exception as e:
+        print(f"TICKET ERROR: {e}")
+        my_tickets = []
+    finally:
+        conn.close()
 
     return render_template('tickets.html', tickets=my_tickets)
 
@@ -417,23 +398,25 @@ def notifications():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT Message, IsRead, CreatedAt
-        FROM Notifications
-        WHERE UserId=?
-        ORDER BY CreatedAt DESC
-    """, (session['user_id'],))
+    try:
+        cursor.execute("""
+            SELECT Message, IsRead, CreatedAt
+            FROM Notifications
+            WHERE UserId=?
+            ORDER BY CreatedAt DESC
+        """, (session['user_id'],))
+        data = cursor.fetchall()
 
-    data = cursor.fetchall()
-
-    cursor.execute("""
-        UPDATE Notifications
-        SET IsRead=1
-        WHERE UserId=? AND IsRead=0
-    """, (session['user_id'],))
-
-    conn.commit()
-    conn.close()
+        cursor.execute("""
+            UPDATE Notifications
+            SET IsRead=1
+            WHERE UserId=? AND IsRead=0
+        """, (session['user_id'],))
+        conn.commit()
+    except:
+        data = []
+    finally:
+        conn.close()
 
     return render_template('notifications.html', notifications=data)
 
@@ -445,75 +428,57 @@ def profile():
         return redirect(url_for('auth.login'))
 
     user_id = session['user_id']
-
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    if request.method == 'POST':
+    try:
+        if request.method == 'POST':
+            # avatar upload
+            if 'avatar' in request.files:
+                file = request.files['avatar']
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                    file.save(os.path.join(UPLOAD_FOLDER, filename))
 
-        # avatar upload
-        if 'avatar' in request.files:
-            file = request.files['avatar']
+                    cursor.execute("""
+                        UPDATE Users
+                        SET Avatar=?
+                        WHERE UserId=?
+                    """, (filename, user_id))
+                    conn.commit()
 
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
+            # password change
+            if request.form.get('old_password') and request.form.get('new_password'):
+                cursor.execute("SELECT PasswordHash FROM Users WHERE UserId=?", (user_id,))
+                user = cursor.fetchone()
 
-                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                if user and check_password_hash(user["PasswordHash"], request.form['old_password']):
+                    new_hash = generate_password_hash(request.form['new_password'])
+                    cursor.execute("""
+                        UPDATE Users
+                        SET PasswordHash=?
+                        WHERE UserId=?
+                    """, (new_hash, user_id))
+                    conn.commit()
+                    flash("Password changed!", "success")
+                else:
+                    flash("Old password galat hai!", "error")
+            
+            return redirect(url_for('main.profile'))
 
-                file.save(os.path.join(UPLOAD_FOLDER, filename))
+        cursor.execute("""
+            SELECT Username, Email, Role, Level, XP, Avatar, CreatedAt
+            FROM Users
+            WHERE UserId=?
+        """, (user_id,))
+        user_info = cursor.fetchone()
 
-                cursor.execute("""
-                    UPDATE Users
-                    SET Avatar=?
-                    WHERE UserId=?
-                """, (filename, user_id))
-
-                conn.commit()
-
-        # password change
-        if request.form.get('old_password') and request.form.get('new_password'):
-
-            cursor.execute("""
-                SELECT PasswordHash
-                FROM Users
-                WHERE UserId=?
-            """, (user_id,))
-
-            user = cursor.fetchone()
-
-            if user and check_password_hash(
-                user["PasswordHash"],
-                request.form['old_password']
-            ):
-
-                new_hash = generate_password_hash(
-                    request.form['new_password']
-                )
-
-                cursor.execute("""
-                    UPDATE Users
-                    SET PasswordHash=?
-                    WHERE UserId=?
-                """, (new_hash, user_id))
-
-                conn.commit()
-                flash("Password changed!", "success")
-
-            else:
-                flash("Old password galat hai!", "error")
-
+    except Exception as e:
+        print(f"PROFILE ERROR: {e}")
+        user_info = None
+    finally:
         conn.close()
-        return redirect(url_for('main.profile'))
-
-    cursor.execute("""
-        SELECT Username, Email, Role, Level, XP, Avatar, CreatedAt
-        FROM Users
-        WHERE UserId=?
-    """, (user_id,))
-
-    user_info = cursor.fetchone()
-
-    conn.close()
 
     return render_template('profile.html', user=user_info)
 
@@ -527,37 +492,41 @@ def admin_panel():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT UserId, Username, Email, Role,
-               IsBanned, CreatedAt, WarningCount
-        FROM Users
-    """)
-    users = cursor.fetchall()
+    try:
+        cursor.execute("""
+            SELECT UserId, Username, Email, Role,
+                   IsBanned, CreatedAt, WarningCount
+            FROM Users
+        """)
+        users = cursor.fetchall()
 
-    cursor.execute("""
-        SELECT TicketId, Subject, Message, Status, CreatedAt
-        FROM Tickets
-        ORDER BY CreatedAt DESC
-    """)
-    tickets = cursor.fetchall()
+        cursor.execute("""
+            SELECT TicketId, Subject, Message, Status, CreatedAt
+            FROM Tickets
+            ORDER BY CreatedAt DESC
+        """)
+        tickets = cursor.fetchall()
 
-    cursor.execute("""
-        SELECT AnnouncementId, Title, PostedDate
-        FROM Announcements
-        ORDER BY PostedDate DESC
-    """)
-    announcements = cursor.fetchall()
+        cursor.execute("""
+            SELECT AnnouncementId, Title, PostedDate
+            FROM Announcements
+            ORDER BY PostedDate DESC
+        """)
+        announcements = cursor.fetchall()
 
-    cursor.execute("""
-        SELECT SettingValue
-        FROM SystemSettings
-        WHERE SettingKey=?
-    """, ('MaintenanceMode',))
+        cursor.execute("""
+            SELECT SettingValue
+            FROM SystemSettings
+            WHERE SettingKey=?
+        """, ('MaintenanceMode',))
+        row = cursor.fetchone()
+        m_status = row["SettingValue"] == '1' if row else False
 
-    row = cursor.fetchone()
-    m_status = row["SettingValue"] == '1'
-
-    conn.close()
+    except Exception as e:
+        print(f"ADMIN ERROR: {e}")
+        users, tickets, announcements, m_status = [], [], [], False
+    finally:
+        conn.close()
 
     return render_template(
         'admin.html',
@@ -577,17 +546,21 @@ def post_announcement():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO Announcements (Title, Content, AuthorId)
-        VALUES (?, ?, ?)
-    """, (
-        request.form['title'],
-        request.form['content'],
-        session['user_id']
-    ))
-
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("""
+            INSERT INTO Announcements (Title, Content, AuthorId, PostedDate)
+            VALUES (?, ?, ?, ?)
+        """, (
+            request.form['title'],
+            request.form['content'],
+            session['user_id'],
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        ))
+        conn.commit()
+    except Exception as e:
+        print(f"ANNOUNCEMENT POST ERROR: {e}")
+    finally:
+        conn.close()
 
     return redirect(url_for('main.admin_panel'))
 
@@ -601,13 +574,13 @@ def delete_announcement(ann_id):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        DELETE FROM Announcements
-        WHERE AnnouncementId=?
-    """, (ann_id,))
-
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("DELETE FROM Announcements WHERE AnnouncementId=?", (ann_id,))
+        conn.commit()
+    except Exception as e:
+        print(f"ANNOUNCEMENT DELETE ERROR: {e}")
+    finally:
+        conn.close()
 
     return redirect(url_for('main.admin_panel'))
 
@@ -621,28 +594,19 @@ def toggle_maintenance():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT SettingValue
-        FROM SystemSettings
-        WHERE SettingKey=?
-    """, ('MaintenanceMode',))
+    try:
+        cursor.execute("SELECT SettingValue FROM SystemSettings WHERE SettingKey=?", ('MaintenanceMode',))
+        row = cursor.fetchone()
 
-    row = cursor.fetchone()
+        new_val = '0' if (row and row["SettingValue"] == '1') else '1'
 
-    new_val = '0'
-    if row["SettingValue"] == '0':
-        new_val = '1'
-
-    cursor.execute("""
-        UPDATE SystemSettings
-        SET SettingValue=?
-        WHERE SettingKey=?
-    """, (new_val, 'MaintenanceMode'))
-
-    conn.commit()
-    conn.close()
-
-    flash("Maintenance mode updated!", "success")
+        cursor.execute("UPDATE SystemSettings SET SettingValue=? WHERE SettingKey=?", (new_val, 'MaintenanceMode'))
+        conn.commit()
+        flash("Maintenance mode updated!", "success")
+    except Exception as e:
+        print(f"MAINTENANCE TOGGLE ERROR: {e}")
+    finally:
+        conn.close()
 
     return redirect(url_for('main.admin_panel'))
 
@@ -656,25 +620,18 @@ def ban_user(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT IsBanned FROM Users
-        WHERE UserId=?
-    """, (user_id,))
+    try:
+        cursor.execute("SELECT IsBanned FROM Users WHERE UserId=?", (user_id,))
+        row = cursor.fetchone()
 
-    row = cursor.fetchone()
-
-    new_status = 1
-    if row["IsBanned"] == 1:
-        new_status = 0
-
-    cursor.execute("""
-        UPDATE Users
-        SET IsBanned=?
-        WHERE UserId=?
-    """, (new_status, user_id))
-
-    conn.commit()
-    conn.close()
+        if row:
+            new_status = 0 if row["IsBanned"] == 1 else 1
+            cursor.execute("UPDATE Users SET IsBanned=? WHERE UserId=?", (new_status, user_id))
+            conn.commit()
+    except Exception as e:
+        print(f"BAN USER ERROR: {e}")
+    finally:
+        conn.close()
 
     return redirect(url_for('main.admin_panel'))
 
@@ -688,29 +645,24 @@ def warn_user(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT WarningCount
-        FROM Users
-        WHERE UserId=?
-    """, (user_id,))
+    try:
+        cursor.execute("SELECT WarningCount FROM Users WHERE UserId=?", (user_id,))
+        row = cursor.fetchone()
 
-    row = cursor.fetchone()
-
-    warnings = row["WarningCount"] + 1
-
-    banned = 0
-    if warnings >= 3:
-        warnings = 3
-        banned = 1
-
-    cursor.execute("""
-        UPDATE Users
-        SET WarningCount=?, IsBanned=?
-        WHERE UserId=?
-    """, (warnings, banned, user_id))
-
-    conn.commit()
-    conn.close()
+        if row:
+            warnings = row["WarningCount"] + 1
+            banned = 1 if warnings >= 3 else 0
+            
+            cursor.execute("""
+                UPDATE Users
+                SET WarningCount=?, IsBanned=?
+                WHERE UserId=?
+            """, (min(warnings, 3), banned, user_id))
+            conn.commit()
+    except Exception as e:
+        print(f"WARN USER ERROR: {e}")
+    finally:
+        conn.close()
 
     return redirect(url_for('main.admin_panel'))
 
@@ -724,11 +676,14 @@ def delete_user(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("DELETE FROM Users WHERE UserId=?", (user_id,))
-    cursor.execute("DELETE FROM Wallet WHERE UserId=?", (user_id,))
-
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("DELETE FROM Users WHERE UserId=?", (user_id,))
+        cursor.execute("DELETE FROM Wallet WHERE UserId=?", (user_id,))
+        conn.commit()
+    except Exception as e:
+        print(f"DELETE USER ERROR: {e}")
+    finally:
+        conn.close()
 
     return redirect(url_for('main.admin_panel'))
 
@@ -742,13 +697,5 @@ def close_ticket(ticket_id):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        UPDATE Tickets
-        SET Status='Closed'
-        WHERE TicketId=?
-    """, (ticket_id,))
-
-    conn.commit()
-    conn.close()
-
-    return redirect(url_for('main.admin_panel'))
+    try:
+        cursor.execute("UPDATE Ti
