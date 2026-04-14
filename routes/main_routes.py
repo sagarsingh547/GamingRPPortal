@@ -72,10 +72,10 @@ def dashboard():
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT u.Username, u.Role, u.Level, u.XP, w.Coins
-        FROM Users u
-        JOIN Wallet w ON u.UserId = w.UserId
-        WHERE u.UserId=?
+        SELECT TOP 5 Amount, Type, Description, TransactionDate
+        FROM Transactions
+        WHERE UserId=?
+        ORDER BY TransactionDate DESC
     """, (user_id,))
 
     user_data = cursor.fetchone()
