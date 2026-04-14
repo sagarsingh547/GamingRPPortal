@@ -60,34 +60,33 @@ def index():
     return render_template('index.html', announcements=announcements)
 
 
-# DASHBOARD
+# --- DASHBOARD ---
 @main_bp.route('/dashboard')
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
     user_id = session['user_id']
-
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # USER DATA
     cursor.execute("""
-        SELECT TOP 5 Amount, Type, Description, TransactionDate
-        FROM Transactions
-        WHERE UserId=?
-        ORDER BY TransactionDate DESC
+        SELECT u.Username, u.Role, u.Level, u.XP, w.Coins
+        FROM Users u
+        JOIN Wallet w ON u.UserId = w.UserId
+        WHERE u.UserId = ?
     """, (user_id,))
-
     user_data = cursor.fetchone()
 
+    # LAST 5 TRANSACTIONS (SQLite FIXED)
     cursor.execute("""
         SELECT Amount, Type, Description, TransactionDate
         FROM Transactions
-        WHERE UserId=?
+        WHERE UserId = ?
         ORDER BY TransactionDate DESC
         LIMIT 5
     """, (user_id,))
-
     transactions = cursor.fetchall()
 
     conn.close()
