@@ -109,20 +109,19 @@ def daily_bonus():
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # Last claim check
     cursor.execute(
         "SELECT LastDailyReward FROM Wallet WHERE UserId=?",
         (user_id,)
     )
-
     row = cursor.fetchone()
 
     now = datetime.now()
-
     can_claim = True
 
     if row and row["LastDailyReward"]:
         try:
-            old_time = datetime.fromisoformat(row["LastDailyReward"])
+            old_time = datetime.fromisoformat(str(row["LastDailyReward"]))
             if now - old_time < timedelta(days=1):
                 can_claim = False
         except:
@@ -133,6 +132,18 @@ def daily_bonus():
         conn.close()
         return redirect(url_for('main.dashboard'))
 
+    # Current XP get karo
+    cursor.execute(
+        "SELECT XP FROM Users WHERE UserId=?",
+        (user_id,)
+    )
+    xp_row = cursor.fetchone()
+
+    current_xp = xp_row["XP"] if xp_row and xp_row["XP"] else 0
+    new_xp = current_xp + 50
+    new_level = int(new_xp // 100) + 1
+
+    # Wallet update
     cursor.execute("""
         UPDATE Wallet
         SET Coins = Coins + 500,
@@ -140,23 +151,24 @@ def daily_bonus():
         WHERE UserId = ?
     """, (now, user_id))
 
+    # User XP + Level update
     cursor.execute("""
         UPDATE Users
-        SET XP = XP + 50
+        SET XP = ?, Level = ?
         WHERE UserId = ?
-    """, (user_id,))
+    """, (new_xp, new_level, user_id))
 
-    cursor.execute("""
-        UPDATE Users
-        SET Level = (XP / 100) + 1
-        WHERE UserId = ?
-    """, (user_id,))
-
+    # Transaction history
     cursor.execute("""
         INSERT INTO Transactions
         (UserId, Amount, Type, Description)
         VALUES (?, ?, ?, ?)
-    """, (user_id, 500, 'Credit', 'Daily Reward'))
+    """, (
+        user_id,
+        500,
+        'Credit',
+        'Daily Reward Claimed'
+    ))
 
     conn.commit()
     conn.close()
